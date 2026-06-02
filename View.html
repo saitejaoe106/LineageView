@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OvalEdge Demo — Column-Level Lineage Reference</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --bg:        #ffffff; --bg2: #f5f4f0; --bg3: #eeecea;
+  --bg-info:   #e6f1fb; --bg-danger: #fcebeb;
+  --tx:        #1a1a18; --tx2: #5f5e5a; --tx3: #888780;
+  --tx-info:   #185fa5; --tx-danger: #a32d2d;
+  --bd:        rgba(0,0,0,0.10); --bd2: rgba(0,0,0,0.18); --bd3: rgba(0,0,0,0.28);
+  --bd-info:   #85b7eb;
+  --r: 8px; --rl: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+    --bg-info: #042c53; --bg-danger: #501313;
+    --tx: #e8e6de; --tx2: #9c9a92; --tx3: #6e6c65;
+    --tx-info: #85b7eb; --tx-danger: #f09595;
+    --bd: rgba(255,255,255,0.10); --bd2: rgba(255,255,255,0.18); --bd3: rgba(255,255,255,0.28);
+    --bd-info: #185fa5;
+  }
+}
+body { font-family: var(--font); background: var(--bg); color: var(--tx); padding: 28px 24px; max-width: 1280px; margin: 0 auto; }
+
+header { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 0.5px solid var(--bd); }
+header h1 { font-size: 20px; font-weight: 500; margin-bottom: 6px; }
+header p  { font-size: 13px; color: var(--tx2); line-height: 1.6; max-width: 780px; }
+.meta { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; }
+.meta span { font-size: 11px; color: var(--tx3); }
+.meta span b { color: var(--tx2); font-weight: 500; }
+
+/* ── PAIR TABS ── */
+.pair-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.ptab {
+  padding: 6px 18px; border-radius: 20px; font-size: 13px; font-family: var(--font);
+  border: 0.5px solid var(--bd2); background: var(--bg2); color: var(--tx2); cursor: pointer; transition: all .15s;
+}
+.ptab.active { background: var(--bg-info); border-color: var(--bd-info); color: var(--tx-info); }
+.ptab:hover:not(.active) { border-color: var(--bd3); color: var(--tx); }
+
+/* ── KPI PILLS ── */
+.kpi-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.kbtn {
+  font-size: 11px; padding: 4px 11px; border-radius: 20px; font-family: var(--font);
+  border: 0.5px solid var(--bd2); background: var(--bg2); color: var(--tx2); cursor: pointer; transition: all .15s;
+}
+.kbtn.active { background: var(--bg-info); border-color: var(--bd-info); color: var(--tx-info); }
+.kbtn:hover:not(.active) { border-color: var(--bd3); color: var(--tx); }
+
+/* ── INFO BAR ── */
+.info-bar {
+  font-size: 12px; padding: 9px 13px; border-radius: var(--r);
+  background: var(--bg2); border: 0.5px solid var(--bd); margin-bottom: 14px;
+  color: var(--tx2); min-height: 38px; line-height: 1.6;
+}
+.info-bar b { color: var(--tx); font-weight: 500; }
+
+/* ── LEGEND ── */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.leg { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--tx2); }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.bar { width: 14px; height: 9px; flex-shrink: 0; }
+
+/* ── LINEAGE CANVAS ── */
+.canvas { display: grid; grid-template-columns: repeat(5,1fr); border: 0.5px solid var(--bd); border-radius: var(--rl); overflow: hidden; }
+.layer { border-right: 0.5px solid var(--bd); padding: 12px 10px; min-width: 0; background: var(--bg); }
+.layer:last-child { border-right: none; }
+.layer-hdr {
+  font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--tx3); padding-bottom: 8px; border-bottom: 0.5px solid var(--bd); margin-bottom: 10px;
+}
+
+/* ── SOURCE BLOCKS ── */
+.sys-block { margin-bottom: 12px; }
+.sys-name  { font-size: 11px; font-weight: 500; padding: 3px 7px; border-radius: 4px; display: inline-block; margin-bottom: 5px; }
+.col-row   {
+  font-size: 11px; padding: 3px 7px; border-radius: 4px; margin-bottom: 2px;
+  border: 0.5px solid transparent; color: var(--tx2); line-height: 1.4; word-break: break-all;
+}
+.col-row.lit { border-color: currentColor; font-weight: 500; }
+.col-row.conflict::after { content: ' ⚡'; font-size: 10px; }
+
+/* source colors */
+.teal   { color:#0F6E56; background:#E1F5EE; } .teal.lit   { background:#9FE1CB; }
+.purple { color:#534AB7; background:#EEEDFE; } .purple.lit { background:#CECBF6; }
+.amber  { color:#854F0B; background:#FAEEDA; } .amber.lit  { background:#FAC775; }
+.coral  { color:#993C1D; background:#FAECE7; } .coral.lit  { background:#F5C4B3; }
+.gray   { color:#5F5E5A; background:#F1EFE8; } .gray.lit   { background:#D3D1C7; }
+.blue   { color:#185FA5; background:#E6F1FB; } .blue.lit   { background:#B5D4F4; }
+@media (prefers-color-scheme: dark) {
+  .teal   { color:#5DCAA5; background:#04342C; } .teal.lit   { background:#085041; }
+  .purple { color:#AFA9EC; background:#26215C; } .purple.lit { background:#3C3489; }
+  .amber  { color:#EF9F27; background:#412402; } .amber.lit  { background:#633806; }
+  .coral  { color:#F0997B; background:#4A1B0C; } .coral.lit  { background:#712B13; }
+  .gray   { color:#B4B2A9; background:#2C2C2A; } .gray.lit   { background:#444441; }
+  .blue   { color:#85B7EB; background:#042C53; } .blue.lit   { background:#0C447C; }
+}
+
+/* ── ETL ── */
+.etl-block {
+  font-size: 11px; padding: 6px 8px; border-radius: 5px; margin-bottom: 6px;
+  border: 0.5px solid var(--bd); color: var(--tx2); background: var(--bg2); line-height: 1.5;
+}
+.etl-block.lit { border-color: var(--bd3); color: var(--tx); background: var(--bg); }
+.etl-num { font-size: 10px; color: var(--tx3); margin-bottom: 2px; }
+
+/* ── SCHEMA TAGS ── */
+.schema-tag {
+  font-size: 10px; font-weight: 500; letter-spacing: .04em;
+  padding: 1px 6px; border-radius: 3px; display: inline-block; margin-bottom: 5px;
+}
+.tag-gray   { background:#D3D1C7; color:#2C2C2A; }
+.tag-blue   { background:#B5D4F4; color:#042C53; }
+.tag-purple { background:#CECBF6; color:#26215C; }
+.tag-amber  { background:#FAC775; color:#412402; }
+.tag-coral  { background:#F5C4B3; color:#4A1B0C; }
+@media (prefers-color-scheme: dark) {
+  .tag-gray   { background:#444441; color:#D3D1C7; }
+  .tag-blue   { background:#0C447C; color:#B5D4F4; }
+  .tag-purple { background:#3C3489; color:#CECBF6; }
+  .tag-amber  { background:#633806; color:#FAC775; }
+  .tag-coral  { background:#712B13; color:#F5C4B3; }
+}
+
+/* ── REPORT CARDS ── */
+.report-card {
+  border: 0.5px solid var(--bd); border-radius: var(--r);
+  padding: 8px 10px; margin-bottom: 8px; font-size: 11px; background: var(--bg2);
+}
+.report-card.lit { border-color: var(--bd3); background: var(--bg); }
+.rpt-title { font-weight: 500; color: var(--tx); margin-bottom: 4px; }
+.kpi-measure {
+  color: var(--tx2); margin-bottom: 5px; padding: 4px 7px;
+  border-left: 2px solid var(--bd2); border-radius: 0 3px 3px 0;
+  font-size: 11px; line-height: 1.5;
+}
+.kpi-measure.lit { color: var(--tx); }
+.kpi-measure.rA  { border-left-color: #0F6E56; }
+.kpi-measure.rB  { border-left-color: #854F0B; }
+.kpi-measure.rC  { border-left-color: #534AB7; }
+.kpi-measure.rD  { border-left-color: #993C1D; }
+.kpi-formula { font-size: 10px; color: var(--tx2); margin-top: 2px; font-family: 'Courier New', monospace; word-break: break-all; }
+.kpi-owner   { font-size: 10px; color: var(--tx3); margin-top: 1px; }
+.conflict-badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 3px; display: inline-block; margin-top: 3px;
+  background: var(--bg-danger); color: var(--tx-danger);
+}
+.mart-badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 3px; display: inline-block; margin-bottom: 5px;
+}
+
+/* ── FOOTER ── */
+footer {
+  margin-top: 28px; padding-top: 14px; border-top: 0.5px solid var(--bd);
+  font-size: 11px; color: var(--tx3); line-height: 1.9;
+}
+footer b { color: var(--tx2); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OvalEdge Demo — Column-Level Lineage Reference</h1>
+  <p>Traces every KPI from source application column through ETL, staging, ODS, DW fact tables, and mart tables to Power BI reports. The conflict is in the lineage — same KPI name, different source columns, different mart tables, different numbers.</p>
+  <div class="meta">
+    <span><b>Source apps:</b> InvoiceFlow · ProcureEdge · SalesCRM · InventoryHub</span>
+    <span><b>Warehouse:</b> SQL Server — stg → ods → dw → mart</span>
+    <span><b>Reports:</b> 4 reports in 2 pairs — Power BI</span>
+    <span><b>KPIs:</b> 15 traced · each with conflicting formula versions</span>
+    <span><b>DDL file:</b> ovaledge_demo_v3_ddl.sql</span>
+  </div>
+</header>
+
+<!-- PAIR TABS -->
+<div class="pair-tabs">
+  <button class="ptab active" data-pair="1" onclick="switchPair(1)">Pair 1 — Revenue domain (Report A vs B)</button>
+  <button class="ptab" data-pair="2" onclick="switchPair(2)">Pair 2 — Operations domain (Report C vs D)</button>
+</div>
+
+<!-- KPI PILLS -->
+<div class="kpi-bar" id="kpiBar"></div>
+
+<!-- INFO BAR -->
+<div class="info-bar" id="infoBar">Select a KPI above to trace its full column-level lineage across all 5 layers.</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="leg"><div class="dot" style="background:#1D9E75"></div>InvoiceFlow</div>
+  <div class="leg"><div class="dot" style="background:#7F77DD"></div>ProcureEdge</div>
+  <div class="leg"><div class="dot" style="background:#BA7517"></div>SalesCRM</div>
+  <div class="leg"><div class="dot" style="background:#D85A30"></div>InventoryHub</div>
+  <div class="leg"><div class="dot" style="background:#E24B4A"></div>⚡ conflict column</div>
+  <div class="leg"><div class="bar" style="background:#0F6E56"></div>Report A / C formula</div>
+  <div class="leg"><div class="bar" style="background:#854F0B"></div>Report B / D formula</div>
+</div>
+
+<!-- CANVAS -->
+<div class="canvas">
+  <div class="layer"><div class="layer-hdr">Source app</div><div id="srcLayer"></div></div>
+  <div class="layer"><div class="layer-hdr">ETL</div><div id="etlLayer"></div></div>
+  <div class="layer"><div class="layer-hdr">stg + ods</div><div id="odsLayer"></div></div>
+  <div class="layer"><div class="layer-hdr">dw fact + mart</div><div id="dwLayer"></div></div>
+  <div class="layer"><div class="layer-hdr">Power BI report</div><div id="rptLayer"></div></div>
+</div>
+
+<footer>
+  <b>Report A</b> — Revenue &amp; Profitability · Finance / CFO · reads mart_finance_revenue &nbsp;|&nbsp;
+  <b>Report B</b> — Sales Performance · Sales / VP Sales · reads mart_sales_performance<br>
+  <b>Report C</b> — Procurement &amp; Cost · CPO / Finance Cost · reads mart_procurement_cost &nbsp;|&nbsp;
+  <b>Report D</b> — Supply Chain &amp; Inventory · Operations / SC Director · reads mart_ops_inventory<br>
+  ⚡ marks the conflict column — the input that differs between the two report formulas.
+  Green border = Report A or C formula. Amber/coral border = Report B or D formula.
+  No _v1/_v2 columns exist anywhere in this warehouse. The conflict lives in the lineage, not the schema.
+  All table and column names match <b>ovaledge_demo_v3_ddl.sql</b>.
+</footer>
+
+<script>
+const PAIR1 = [
+  { id:'gross_rev', label:'Gross Revenue',
+    conflict:'SUM(invoice.invoice_amount) vs SUM(sales_order.order_value) — invoiced reality vs booked order, $15M gap',
+    src:[
+      {sys:'invoiceflow.invoice',   col:'invoice_amount',  cls:'teal',  rpt:'A'},
+      {sys:'salescrm.sales_order',  col:'order_value',     cls:'amber', rpt:'B', conflict:true}
+    ],
+    etl:['Extract invoiceflow.invoice.invoice_amount','Extract salescrm.sales_order.order_value','Two separate extract jobs — no reconciliation at ETL layer'],
+    ods:['stg.stg_invoice → invoice_amount','stg.stg_sales_order_crm → order_value','ods.ods_invoice.invoice_amount','ods.ods_sales_order_crm.order_value'],
+    dw:['fact_revenue_invoiceflow.invoice_amount','fact_revenue_salescrm.order_value','mart_finance_revenue.gross_revenue','mart_sales_performance.gross_revenue'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'Gross Revenue',
+       formula:'SUM(invoice.invoice_amount)', owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'Gross Revenue',
+       formula:'SUM(sales_order.order_value)', owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'net_rev', label:'Net Revenue',
+    conflict:'Finance deducts invoice.return_amount + credit_note.credit_amount — columns that do not exist in SalesCRM',
+    src:[
+      {sys:'invoiceflow.invoice',    col:'invoice_amount',  cls:'teal', rpt:'A'},
+      {sys:'invoiceflow.invoice',    col:'discount_amount', cls:'teal', rpt:'AB'},
+      {sys:'invoiceflow.invoice',    col:'return_amount',   cls:'teal', rpt:'A'},
+      {sys:'invoiceflow.credit_note',col:'credit_amount',   cls:'teal', rpt:'A'},
+      {sys:'salescrm.sales_order',   col:'order_value',     cls:'amber',rpt:'B', conflict:true}
+    ],
+    etl:['Extract invoice_amount, discount_amount, return_amount from InvoiceFlow','Extract credit_note.credit_amount from InvoiceFlow','Extract sales_order.order_value from SalesCRM','SalesCRM has no return or credit_note table — V-B path cannot deduct them'],
+    ods:['ods.ods_invoice.invoice_amount','ods.ods_invoice.discount_amount','ods.ods_invoice.return_amount','ods.ods_credit_note.credit_amount','ods.ods_sales_order_crm.order_value'],
+    dw:['fact_revenue_invoiceflow: invoice_amount, discount_amount, return_amount, credit_amount','fact_revenue_salescrm: order_value, discount_amount (no return/credit)','mart_finance_revenue.net_revenue','mart_sales_performance.net_revenue'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'Net Revenue',
+       formula:'SUM(invoice.invoice_amount) - SUM(invoice.discount_amount) - SUM(invoice.return_amount) - SUM(credit_note.credit_amount)',
+       owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'Net Revenue',
+       formula:'SUM(sales_order.order_value) - SUM(invoice.discount_amount)',
+       owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'gross_margin', label:'Gross Margin %',
+    conflict:'Different revenue base AND different cost base — neither input agrees between the two reports',
+    src:[
+      {sys:'invoiceflow.invoice',    col:'invoice_amount',  cls:'teal',  rpt:'A'},
+      {sys:'inventoryhub.product',   col:'standard_cost',   cls:'coral', rpt:'A'},
+      {sys:'inventoryhub.shipment',  col:'units_shipped',   cls:'coral', rpt:'A'},
+      {sys:'procureedge.po_line',    col:'unit_price',      cls:'purple',rpt:'B', conflict:true},
+      {sys:'invoiceflow.invoice_line',col:'qty_invoiced',   cls:'teal',  rpt:'B', conflict:true}
+    ],
+    etl:['Report A path: net_revenue_A - (product.standard_cost × shipment.units_shipped) / net_revenue_A','Report B path: (invoice_amount - po_line.unit_price × invoice_line.qty_invoiced) / invoice_amount','Both revenue and cost inputs differ — results are not comparable'],
+    ods:['ods.ods_invoice.invoice_amount','ods.ods_product.standard_cost','ods.ods_shipment.units_shipped','ods.ods_po_line.unit_price','ods.ods_invoice_line.qty_invoiced'],
+    dw:['fact_revenue_invoiceflow.net_revenue_finance','fact_inventory_operations.cogs_standard_cost','fact_revenue_salescrm.order_value','fact_procurement.po_line_amount','mart_finance_revenue.gross_margin_pct','mart_sales_performance.gross_margin_pct'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'Gross Margin %',
+       formula:'(net_revenue_A - SUM(product.standard_cost * shipment.units_shipped)) / net_revenue_A * 100',
+       owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'Gross Margin %',
+       formula:'(SUM(invoice.invoice_amount) - SUM(po_line.unit_price * invoice_line.qty_invoiced)) / SUM(invoice.invoice_amount) * 100',
+       owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'cogs', label:'COGS',
+    conflict:'SUM(product.standard_cost * shipment.units_shipped) vs SUM(po_line.unit_price * invoice_line.qty_invoiced) — theoretical vs actual price',
+    src:[
+      {sys:'inventoryhub.product',    col:'standard_cost',  cls:'coral', rpt:'A'},
+      {sys:'inventoryhub.shipment',   col:'units_shipped',  cls:'coral', rpt:'A'},
+      {sys:'procureedge.po_line',     col:'unit_price',     cls:'purple',rpt:'B', conflict:true},
+      {sys:'invoiceflow.invoice_line',col:'qty_invoiced',   cls:'teal',  rpt:'B', conflict:true}
+    ],
+    etl:['Report A: product.standard_cost × shipment.units_shipped from InventoryHub','Report B: po_line.unit_price × invoice_line.qty_invoiced from ProcureEdge + InvoiceFlow','Standard cost is set by Finance and rarely matches actual vendor prices'],
+    ods:['ods.ods_product.standard_cost','ods.ods_shipment.units_shipped','ods.ods_po_line.unit_price','ods.ods_invoice_line.qty_invoiced'],
+    dw:['fact_inventory_operations.cogs_standard_cost = standard_cost × units_shipped','fact_procurement.po_line_amount (unit_price × qty_ordered)','mart_finance_revenue.cogs','mart_sales_performance.cogs'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'COGS',
+       formula:'SUM(product.standard_cost * shipment.units_shipped)',
+       owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'COGS',
+       formula:'SUM(po_line.unit_price * invoice_line.qty_invoiced)',
+       owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'rev_per_cust', label:'Revenue per Customer',
+    conflict:'invoice.billing_account_id vs crm_customer.customer_id — not 1:1, giving different customer counts',
+    src:[
+      {sys:'invoiceflow.invoice',   col:'billing_account_id', cls:'teal', rpt:'A'},
+      {sys:'salescrm.crm_customer', col:'customer_id',        cls:'amber',rpt:'B', conflict:true}
+    ],
+    etl:['Finance denominator: COUNT(DISTINCT invoice.billing_account_id)','Sales denominator: COUNT(DISTINCT crm_customer.customer_id)','One billing account can have multiple CRM customer records'],
+    ods:['ods.ods_invoice.billing_account_id (Finance count)','ods.ods_customer.crm_customer_id (Sales count)','ods.ods_customer: both identifiers stored side by side'],
+    dw:['dim_customer.billing_account_id','dim_customer.crm_customer_id (nullable)','mart_finance_revenue.rev_per_customer','mart_sales_performance.rev_per_customer'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'Revenue per Customer',
+       formula:'SUM(net_revenue_A) / COUNT(DISTINCT invoice.billing_account_id)',
+       owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'Revenue per Customer',
+       formula:'SUM(sales_order.order_value) / COUNT(DISTINCT crm_customer.customer_id)',
+       owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'win_rate', label:'Win Rate',
+    conflict:'deal.created_date population (all deals) vs stage filter (won+lost only) — open deals in denominator: 41% vs 68%',
+    src:[
+      {sys:'salescrm.deal', col:'stage',        cls:'amber', rpt:'AB'},
+      {sys:'salescrm.deal', col:'deal_id',       cls:'amber', rpt:'AB'},
+      {sys:'salescrm.deal', col:'created_date',  cls:'amber', rpt:'A', conflict:true}
+    ],
+    etl:['Extract all deal rows with stage, created_date, deal_id','Report A denominator: COUNT all deal_id WHERE created_date IN period (includes open)','Report B denominator: COUNT deal_id WHERE stage IN (Closed-Won, Closed-Lost) only'],
+    ods:['ods.ods_deal.deal_id','ods.ods_deal.stage','ods.ods_deal.created_date'],
+    dw:['fact_revenue_salescrm.is_won','fact_revenue_salescrm.is_lost','fact_revenue_salescrm.is_open','mart_sales_performance.win_rate'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'Win Rate',
+       formula:"COUNT(deal.deal_id WHERE stage='Closed-Won') / COUNT(deal.deal_id WHERE created_date IN period) * 100",
+       owner:'Finance Ops', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'Win Rate',
+       formula:"COUNT(deal.deal_id WHERE stage='Closed-Won') / COUNT(deal.deal_id WHERE stage IN ('Closed-Won','Closed-Lost')) * 100",
+       owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'avg_deal', label:'Avg Deal Size',
+    conflict:'invoice.invoice_amount on new customers vs deal.deal_value on all won deals — actual invoiced vs CRM booked',
+    src:[
+      {sys:'invoiceflow.invoice',  col:'invoice_amount',  cls:'teal',  rpt:'A'},
+      {sys:'invoiceflow.customer', col:'is_new',          cls:'teal',  rpt:'A'},
+      {sys:'salescrm.deal',        col:'deal_value',      cls:'amber', rpt:'B', conflict:true},
+      {sys:'salescrm.deal',        col:'stage',           cls:'amber', rpt:'B'}
+    ],
+    etl:["Report A: SUM(invoice.invoice_amount WHERE customer.is_new=1) / COUNT deals on new customers","Report B: SUM(deal.deal_value WHERE stage='Closed-Won') / COUNT won deals","Invoiced amount vs booked deal value — price changes post-booking not reflected in CRM"],
+    ods:['ods.ods_invoice.invoice_amount','ods.ods_customer.is_new (from invoiceflow.customer)','ods.ods_deal.deal_value','ods.ods_deal.stage'],
+    dw:['fact_revenue_invoiceflow: invoice_amount + customer.is_new','fact_revenue_salescrm: deal_value + stage','mart_finance_revenue.avg_deal_size','mart_sales_performance.avg_deal_size'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'Avg Deal Size',
+       formula:'SUM(invoice.invoice_amount WHERE customer.is_new=1) / COUNT(DISTINCT invoice.deal_id WHERE customer.is_new=1)',
+       owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'Avg Deal Size',
+       formula:"SUM(deal.deal_value WHERE stage='Closed-Won') / COUNT(DISTINCT deal.deal_id WHERE stage='Closed-Won')",
+       owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'dso', label:'DSO',
+    conflict:'Different AR base, period multiplier, and revenue denominator — Finance × 90, AR team × 30',
+    src:[
+      {sys:'invoiceflow.invoice', col:'outstanding_amount', cls:'teal', rpt:'A'},
+      {sys:'invoiceflow.invoice', col:'invoice_amount',     cls:'teal', rpt:'AB'},
+      {sys:'invoiceflow.invoice', col:'payment_status',     cls:'teal', rpt:'B', conflict:true},
+      {sys:'invoiceflow.invoice', col:'invoice_date',       cls:'teal', rpt:'B', conflict:true}
+    ],
+    etl:['Report A: (SUM(invoice.outstanding_amount) / SUM(invoice.invoice_amount)) × 90','Report B: SUM(invoice.invoice_amount WHERE payment_status=Unpaid AND invoice_date <= today-30) / SUM(invoice.invoice_amount) × 30','Period multiplier, AR base, and revenue denominator all differ'],
+    ods:['ods.ods_invoice.outstanding_amount','ods.ods_invoice.invoice_amount','ods.ods_invoice.payment_status','ods.ods_invoice.invoice_date'],
+    dw:['fact_revenue_invoiceflow.outstanding_amount','fact_revenue_invoiceflow.invoice_amount','fact_revenue_invoiceflow.payment_status','mart_finance_revenue.dso'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'DSO',
+       formula:'(SUM(invoice.outstanding_amount) / SUM(invoice.invoice_amount)) * 90',
+       owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'DSO',
+       formula:"SUM(invoice.invoice_amount WHERE payment_status='Unpaid' AND invoice_date <= CURRENT_DATE-30) / SUM(invoice.invoice_amount) * 30",
+       owner:'AR Team', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'cac', label:'CAC',
+    conflict:'(spend_budget.sales_spend + marketing_spend) vs SUM(crm_activity.activity_cost) — full cost centre vs CRM activities only, $850 vs $320',
+    src:[
+      {sys:'invoiceflow.spend_budget', col:'sales_spend',      cls:'teal', rpt:'A'},
+      {sys:'invoiceflow.spend_budget', col:'marketing_spend',  cls:'teal', rpt:'A'},
+      {sys:'invoiceflow.customer',     col:'first_invoice_date',cls:'teal',rpt:'A'},
+      {sys:'salescrm.crm_activity',    col:'activity_cost',    cls:'amber',rpt:'B', conflict:true},
+      {sys:'salescrm.crm_customer',    col:'created_date',     cls:'amber',rpt:'B', conflict:true}
+    ],
+    etl:['Report A: (sales_spend + marketing_spend) / COUNT new billing_account_id by first_invoice_date','Report B: SUM(crm_activity.activity_cost) / COUNT new crm_customer_id by crm_customer.created_date','SalesCRM cannot see marketing_spend — it only exists in InvoiceFlow.spend_budget'],
+    ods:['ods.ods_spend_budget.sales_spend','ods.ods_spend_budget.marketing_spend','ods.ods_customer.first_invoice_date','ods.ods_crm_activity.activity_cost','ods.ods_customer.crm_created_date'],
+    dw:['fact_revenue_invoiceflow: spend data via ods_spend_budget','fact_revenue_salescrm.activity_cost','dim_customer.first_invoice_date (Finance)','dim_customer.crm_created_date (Sales)','mart_finance_revenue.cac','mart_sales_performance.cac'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'CAC',
+       formula:'(SUM(spend_budget.sales_spend) + SUM(spend_budget.marketing_spend)) / COUNT(DISTINCT customer.billing_account_id WHERE first_invoice_date IN period)',
+       owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'CAC',
+       formula:'SUM(crm_activity.activity_cost) / COUNT(DISTINCT crm_customer.customer_id WHERE crm_customer.created_date IN period)',
+       owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  },
+  { id:'rev_leak', label:'Revenue Leakage',
+    conflict:'deal.quoted_price vs invoice.invoice_amount gap vs discount breach — completely different populations',
+    src:[
+      {sys:'salescrm.deal',     col:'quoted_price',          cls:'amber', rpt:'A'},
+      {sys:'invoiceflow.invoice',col:'invoice_amount',       cls:'teal',  rpt:'A'},
+      {sys:'salescrm.deal',     col:'approved_discount_pct', cls:'amber', rpt:'B', conflict:true},
+      {sys:'salescrm.deal',     col:'deal_value',            cls:'amber', rpt:'B', conflict:true},
+      {sys:'invoiceflow.invoice',col:'discount_amount',      cls:'teal',  rpt:'B', conflict:true}
+    ],
+    etl:['Report A: SUM(deal.quoted_price - invoice.invoice_amount) WHERE invoice_amount < quoted_price','Report B: SUM(deal.deal_value * deal.approved_discount_pct) WHERE invoice.discount_amount > deal.deal_value * approved_discount_pct','Different populations — undercharging cases vs discount policy breach cases'],
+    ods:['ods.ods_deal.quoted_price','ods.ods_deal.approved_discount_pct','ods.ods_deal.deal_value','ods.ods_invoice.invoice_amount','ods.ods_invoice.discount_amount'],
+    dw:['dim_deal.quoted_price','dim_deal.approved_discount_pct','fact_revenue_invoiceflow.invoice_amount','fact_revenue_invoiceflow.discount_amount','mart_finance_revenue.revenue_leakage','mart_sales_performance.revenue_leakage'],
+    rpt:[
+      {name:'Report A — Revenue & Profitability', mart:'mart_finance_revenue', kpi:'Revenue Leakage',
+       formula:'SUM(deal.quoted_price - invoice.invoice_amount) WHERE invoice.invoice_amount < deal.quoted_price',
+       owner:'Finance / CFO', cls:'rA'},
+      {name:'Report B — Sales Performance', mart:'mart_sales_performance', kpi:'Revenue Leakage',
+       formula:'SUM(deal.deal_value * deal.approved_discount_pct) WHERE invoice.discount_amount > deal.deal_value * deal.approved_discount_pct',
+       owner:'Sales / VP Sales', cls:'rB', conflict:true}
+    ]
+  }
+];
+
+const PAIR2 = [
+  { id:'cogs_ops', label:'COGS',
+    conflict:'SUM(vendor_invoice.line_amount) vs SUM(product.standard_cost * shipment.units_shipped) — actual paid vs theoretical standard cost, $6M gap',
+    src:[
+      {sys:'procureedge.vendor_invoice', col:'line_amount',   cls:'purple', rpt:'C'},
+      {sys:'inventoryhub.product',       col:'standard_cost', cls:'coral',  rpt:'D', conflict:true},
+      {sys:'inventoryhub.shipment',      col:'units_shipped', cls:'coral',  rpt:'D', conflict:true}
+    ],
+    etl:['Report C: extract vendor_invoice.line_amount — what was actually paid to vendors','Report D: extract product.standard_cost × shipment.units_shipped from InventoryHub','Standard cost is a Finance-set theoretical value — rarely matches actual vendor prices'],
+    ods:['ods.ods_vendor_invoice.line_amount','ods.ods_product.standard_cost','ods.ods_shipment.units_shipped'],
+    dw:['fact_procurement.vendor_invoice_amount','fact_inventory_operations.cogs_standard_cost = standard_cost × units_shipped','mart_procurement_cost.cogs','mart_ops_inventory.cogs'],
+    rpt:[
+      {name:'Report C — Procurement & Cost', mart:'mart_procurement_cost', kpi:'COGS',
+       formula:'SUM(vendor_invoice.line_amount)',
+       owner:'Procurement / CPO', cls:'rC'},
+      {name:'Report D — Supply Chain & Inventory', mart:'mart_ops_inventory', kpi:'COGS',
+       formula:'SUM(product.standard_cost * shipment.units_shipped)',
+       owner:'Operations / SC Director', cls:'rD', conflict:true}
+    ]
+  },
+  { id:'po_cycle', label:'PO Cycle Time',
+    conflict:'DATEDIFF(po_date, grn_date) calendar days vs DATEDIFF(approval_date, vendor_invoice_date) business days — 12 days vs 18 days',
+    src:[
+      {sys:'procureedge.purchase_order', col:'po_date',       cls:'purple', rpt:'C'},
+      {sys:'procureedge.goods_receipt',  col:'grn_date',      cls:'purple', rpt:'C'},
+      {sys:'procureedge.purchase_order', col:'approval_date', cls:'purple', rpt:'D', conflict:true},
+      {sys:'procureedge.vendor_invoice', col:'invoice_date',  cls:'purple', rpt:'D', conflict:true}
+    ],
+    etl:['Report C: DATEDIFF(day, purchase_order.po_date, goods_receipt.grn_date) — calendar days','Report D: DATEDIFF(business_day, purchase_order.approval_date, vendor_invoice.invoice_date)','Start event, end event, and day-counting method all differ'],
+    ods:['ods.ods_purchase_order.po_date','ods.ods_purchase_order.approval_date','ods.ods_goods_receipt.grn_date','ods.ods_vendor_invoice.invoice_date'],
+    dw:['fact_procurement.po_date_sk → grn_date_sk','fact_procurement.approval_date_sk → vendor_invoice_date_sk','fact_procurement.po_to_grn_calendar_days','fact_procurement.approval_to_inv_biz_days','mart_procurement_cost.po_cycle_time','mart_ops_inventory.po_cycle_time'],
+    rpt:[
+      {name:'Report C — Procurement & Cost', mart:'mart_procurement_cost', kpi:'PO Cycle Time',
+       formula:'AVG(DATEDIFF(day, purchase_order.po_date, goods_receipt.grn_date))',
+       owner:'Procurement / CPO', cls:'rC'},
+      {name:'Report D — Supply Chain & Inventory', mart:'mart_ops_inventory', kpi:'PO Cycle Time',
+       formula:'AVG(DATEDIFF(business_day, purchase_order.approval_date, vendor_invoice.invoice_date))',
+       owner:'Finance Cost Control', cls:'rD', conflict:true}
+    ]
+  },
+  { id:'spend_budget', label:'Spend vs Budget %',
+    conflict:'po_line.line_amount vs vendor_invoice.line_amount; spend_budget.approved_amount vs cost_plan.planned_amount — two different budget tables',
+    src:[
+      {sys:'procureedge.po_line',      col:'line_amount',     cls:'purple', rpt:'C'},
+      {sys:'invoiceflow.spend_budget', col:'approved_amount', cls:'teal',   rpt:'C'},
+      {sys:'procureedge.vendor_invoice',col:'line_amount',    cls:'purple', rpt:'D', conflict:true},
+      {sys:'procureedge.cost_plan',    col:'planned_amount',  cls:'purple', rpt:'D', conflict:true}
+    ],
+    etl:['Report C numerator: SUM(po_line.line_amount) — committed PO spend','Report D numerator: SUM(vendor_invoice.line_amount) — actual invoices paid','Report C denominator: spend_budget.approved_amount; Report D: cost_plan.planned_amount'],
+    ods:['ods.ods_po_line.line_amount','ods.ods_spend_budget.approved_amount','ods.ods_vendor_invoice.line_amount','ods.ods_cost_plan.planned_amount'],
+    dw:['fact_procurement.po_line_amount','fact_procurement.vendor_invoice_amount','fact_procurement.approved_budget','fact_procurement.planned_amount','mart_procurement_cost.spend_budget_var_pct','mart_ops_inventory.spend_budget_var_pct'],
+    rpt:[
+      {name:'Report C — Procurement & Cost', mart:'mart_procurement_cost', kpi:'Spend vs Budget %',
+       formula:'(SUM(po_line.line_amount) - SUM(spend_budget.approved_amount)) / SUM(spend_budget.approved_amount) * 100',
+       owner:'Procurement / CPO', cls:'rC'},
+      {name:'Report D — Supply Chain & Inventory', mart:'mart_ops_inventory', kpi:'Spend vs Budget %',
+       formula:'(SUM(vendor_invoice.line_amount) - SUM(cost_plan.planned_amount)) / SUM(cost_plan.planned_amount) * 100',
+       owner:'Finance Cost Control', cls:'rD', conflict:true}
+    ]
+  },
+  { id:'inv_turn', label:'Inventory Turnover',
+    conflict:'vendor_invoice.line_amount / AVG(inventory.stock_value) monetary vs SUM(shipment.units_shipped) / AVG(inventory.quantity_on_hand) units — 5.4x vs 8.2x',
+    src:[
+      {sys:'procureedge.vendor_invoice', col:'line_amount',       cls:'purple', rpt:'C'},
+      {sys:'inventoryhub.inventory',     col:'stock_value',       cls:'coral',  rpt:'C'},
+      {sys:'inventoryhub.shipment',      col:'units_shipped',     cls:'coral',  rpt:'D', conflict:true},
+      {sys:'inventoryhub.inventory',     col:'quantity_on_hand',  cls:'coral',  rpt:'D', conflict:true}
+    ],
+    etl:['Report C: SUM(vendor_invoice.line_amount) / AVG(inventory.stock_value) — monetary ratio','Report D: SUM(shipment.units_shipped) / AVG(inventory.quantity_on_hand) — unit ratio','Completely different bases — monetary vs physical units, not comparable'],
+    ods:['ods.ods_vendor_invoice.line_amount','ods.ods_inventory_snapshot.stock_value','ods.ods_shipment.units_shipped','ods.ods_inventory_snapshot.quantity_on_hand'],
+    dw:['fact_procurement.vendor_invoice_amount','fact_inventory_operations.stock_value','fact_inventory_operations.units_shipped','fact_inventory_operations.quantity_on_hand','mart_procurement_cost.inv_turnover','mart_ops_inventory.inv_turnover'],
+    rpt:[
+      {name:'Report C — Procurement & Cost', mart:'mart_procurement_cost', kpi:'Inventory Turnover',
+       formula:'SUM(vendor_invoice.line_amount) / AVG(inventory.stock_value)',
+       owner:'Supply Chain / SC Director', cls:'rC'},
+      {name:'Report D — Supply Chain & Inventory', mart:'mart_ops_inventory', kpi:'Inventory Turnover',
+       formula:'SUM(shipment.units_shipped) / AVG(inventory.quantity_on_hand)',
+       owner:'Operations', cls:'rD', conflict:true}
+    ]
+  },
+  { id:'fulfil', label:'Fulfilment Rate',
+    conflict:'Full on-time delivery check vs any dispatch — partial and late shipments counted as fulfilled in D — 76% vs 94%',
+    src:[
+      {sys:'inventoryhub.shipment',   col:'shipped_date',    cls:'coral', rpt:'C'},
+      {sys:'inventoryhub.shipment',   col:'qty_shipped',     cls:'coral', rpt:'C'},
+      {sys:'inventoryhub.sales_order',col:'promised_date',   cls:'coral', rpt:'C'},
+      {sys:'inventoryhub.sales_order',col:'qty_ordered',     cls:'coral', rpt:'C'},
+      {sys:'inventoryhub.sales_order',col:'dispatch_status', cls:'coral', rpt:'D', conflict:true}
+    ],
+    etl:["Report C: shipped_date <= promised_date AND qty_shipped = qty_ordered — full on-time only","Report D: sales_order.dispatch_status = 'Dispatched' — any dispatch counts","dispatch_status cannot distinguish partial from full, or on-time from late"],
+    ods:['ods.ods_shipment.shipped_date','ods.ods_shipment.qty_shipped','ods.ods_sales_order_inv.promised_date','ods.ods_sales_order_inv.qty_ordered','ods.ods_sales_order_inv.dispatch_status'],
+    dw:['fact_inventory_operations.is_on_time_full (shipped_date <= promised_date AND qty_shipped = qty_ordered)','fact_inventory_operations.is_dispatched (dispatch_status = Dispatched)','mart_procurement_cost.fulfil_rate','mart_ops_inventory.fulfil_rate'],
+    rpt:[
+      {name:'Report C — Procurement & Cost', mart:'mart_procurement_cost', kpi:'Fulfilment Rate',
+       formula:"COUNT(DISTINCT shipment.order_id WHERE shipment.shipped_date <= sales_order.promised_date AND shipment.qty_shipped = sales_order.qty_ordered) / COUNT(DISTINCT sales_order.order_id) * 100",
+       owner:'Supply Chain / SC Director', cls:'rC'},
+      {name:'Report D — Supply Chain & Inventory', mart:'mart_ops_inventory', kpi:'Fulfilment Rate',
+       formula:"COUNT(DISTINCT sales_order.order_id WHERE sales_order.dispatch_status='Dispatched') / COUNT(DISTINCT sales_order.order_id) * 100",
+       owner:'Operations', cls:'rD', conflict:true}
+    ]
+  },
+  { id:'return_rate', label:'Return Rate',
+    conflict:'return_order.units_returned / invoice_line.qty_invoiced vs credit_note count / invoice count — 7.8% vs 3.1%, 1 credit note can cover 50 units',
+    src:[
+      {sys:'invoiceflow.return_order',  col:'units_returned', cls:'teal', rpt:'C'},
+      {sys:'invoiceflow.invoice_line',  col:'qty_invoiced',   cls:'teal', rpt:'C'},
+      {sys:'invoiceflow.credit_note',   col:'credit_note_id', cls:'teal', rpt:'D', conflict:true},
+      {sys:'invoiceflow.invoice',       col:'invoice_id',     cls:'teal', rpt:'D', conflict:true}
+    ],
+    etl:['Report C: SUM(return_order.units_returned) / SUM(invoice_line.qty_invoiced) — unit volume','Report D: COUNT(credit_note.credit_note_id) / COUNT(invoice.invoice_id) — document count','1 credit note can cover 50 returned units — document count severely undercounts'],
+    ods:['ods.ods_return_order_invoiceflow.units_returned','ods.ods_invoice_line.qty_invoiced','ods.ods_credit_note.credit_note_id','ods.ods_invoice.invoice_id'],
+    dw:['fact_revenue_invoiceflow.units_returned','fact_revenue_invoiceflow.qty_invoiced','fact_revenue_invoiceflow.credit_note_count','fact_revenue_invoiceflow.invoice_count (via fact grain)','mart_procurement_cost.return_rate','mart_ops_inventory.return_rate'],
+    rpt:[
+      {name:'Report C — Procurement & Cost', mart:'mart_procurement_cost', kpi:'Return Rate',
+       formula:'SUM(return_order.units_returned) / SUM(invoice_line.qty_invoiced) * 100',
+       owner:'Finance / Supply Chain', cls:'rC'},
+      {name:'Report D — Supply Chain & Inventory', mart:'mart_ops_inventory', kpi:'Return Rate',
+       formula:'COUNT(DISTINCT credit_note.credit_note_id) / COUNT(DISTINCT invoice.invoice_id) * 100',
+       owner:'Operations', cls:'rD', conflict:true}
+    ]
+  }
+];
+
+let activePair = 1;
+let activeKpi  = null;
+
+function switchPair(p) {
+  activePair = p;
+  activeKpi  = null;
+  document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', +t.dataset.pair === p));
+  buildPills();
+  render(null);
+}
+
+function buildPills() {
+  const bar  = document.getElementById('kpiBar');
+  const data = activePair === 1 ? PAIR1 : PAIR2;
+  bar.innerHTML = '';
+  data.forEach(k => {
+    const b = document.createElement('button');
+    b.className  = 'kbtn';
+    b.dataset.id = k.id;
+    b.textContent = k.label;
+    b.onclick = () => activeKpi === k.id ? render(null) : render(k.id);
+    bar.appendChild(b);
+  });
+}
+
+function render(kpiId) {
+  activeKpi = kpiId;
+  const data = activePair === 1 ? PAIR1 : PAIR2;
+  const k    = kpiId ? data.find(x => x.id === kpiId) : null;
+  document.querySelectorAll('.kbtn').forEach(b => b.classList.toggle('active', b.dataset.id === kpiId));
+  document.getElementById('infoBar').innerHTML = k
+    ? '<b>' + k.label + '</b> — ' + k.conflict
+    : 'Select a KPI above to trace its full column-level lineage across all 5 layers.';
+  renderSrc(k); renderEtl(k); renderOds(k); renderDw(k); renderRpt(k);
+}
+
+function e(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderSrc(k) {
+  const el = document.getElementById('srcLayer');
+  if (!k) {
+    const systems = activePair === 1
+      ? [
+          {name:'InvoiceFlow', cls:'teal', cols:['invoice.invoice_amount','invoice.discount_amount','invoice.return_amount','invoice.outstanding_amount','invoice.payment_status','invoice.invoice_date','invoice_line.qty_invoiced','credit_note.credit_amount','credit_note.credit_note_id','return_order.units_returned','spend_budget.sales_spend','spend_budget.marketing_spend','customer.billing_account_id','customer.first_invoice_date','customer.is_new']},
+          {name:'SalesCRM',    cls:'amber', cols:['sales_order.order_value','deal.deal_value','deal.quoted_price','deal.approved_discount_pct','deal.stage','deal.deal_id','deal.created_date','crm_customer.customer_id','crm_customer.created_date','crm_activity.activity_cost']},
+          {name:'ProcureEdge', cls:'purple', cols:['po_line.unit_price','po_line.line_amount']},
+          {name:'InventoryHub',cls:'coral',  cols:['product.standard_cost','shipment.units_shipped']}
+        ]
+      : [
+          {name:'ProcureEdge', cls:'purple', cols:['vendor_invoice.line_amount','vendor_invoice.invoice_date','purchase_order.po_date','purchase_order.approval_date','goods_receipt.grn_date','po_line.line_amount','cost_plan.planned_amount']},
+          {name:'InventoryHub',cls:'coral',  cols:['product.standard_cost','shipment.units_shipped','inventory.stock_value','inventory.quantity_on_hand','sales_order.promised_date','sales_order.qty_ordered','sales_order.dispatch_status']},
+          {name:'InvoiceFlow', cls:'teal',   cols:['return_order.units_returned','invoice_line.qty_invoiced','credit_note.credit_note_id','invoice.invoice_id','spend_budget.approved_amount']}
+        ];
+    el.innerHTML = systems.map(s =>
+      '<div class="sys-block"><div class="sys-name ' + s.cls + '">' + s.name + '</div>' +
+      s.cols.map(c => '<div class="col-row ' + s.cls + '">' + e(c) + '</div>').join('') + '</div>'
+    ).join('');
+    return;
+  }
+  const groups = {};
+  k.src.forEach(r => {
+    const s = r.sys.split('.')[0];
+    if (!groups[s]) groups[s] = {cls:r.cls, rows:[]};
+    groups[s].rows.push(r);
+  });
+  el.innerHTML = Object.entries(groups).map(([sys,g]) =>
+    '<div class="sys-block"><div class="sys-name ' + g.cls + '">' + sys + '</div>' +
+    g.rows.map(r =>
+      '<div class="col-row ' + g.cls + ' lit' + (r.conflict ? ' conflict' : '') + '">' +
+      e(r.sys.split('.')[1] + '.' + r.col) + '</div>'
+    ).join('') + '</div>'
+  ).join('');
+}
+
+function renderEtl(k) {
+  const el = document.getElementById('etlLayer');
+  if (!k) {
+    el.innerHTML = ['Extract','Transform','Load','Note: both formula paths preserved as separate columns through ODS'].map((t,i) =>
+      '<div class="etl-block"><div class="etl-num">Step ' + (i+1) + '</div>' + e(t) + '</div>'
+    ).join('');
+    return;
+  }
+  el.innerHTML = k.etl.map((s,i) =>
+    '<div class="etl-block lit"><div class="etl-num">Step ' + (i+1) + '</div>' + e(s) + '</div>'
+  ).join('');
+}
+
+function renderOds(k) {
+  const el = document.getElementById('odsLayer');
+  if (!k) {
+    const stgTables = activePair === 1
+      ? ['stg_invoice','stg_invoice_line','stg_credit_note','stg_return_order_invoiceflow','stg_spend_budget','stg_deal','stg_sales_order_crm','stg_crm_activity','stg_po_line']
+      : ['stg_purchase_order','stg_po_line','stg_goods_receipt','stg_vendor_invoice','stg_cost_plan','stg_shipment','stg_inventory_snapshot','stg_sales_order_inv','stg_return_order_invoiceflow'];
+    const odsTables = activePair === 1
+      ? ['ods_invoice','ods_invoice_line','ods_credit_note','ods_return_order_invoiceflow','ods_spend_budget','ods_deal','ods_sales_order_crm','ods_crm_activity','ods_customer','ods_product']
+      : ['ods_purchase_order','ods_po_line','ods_goods_receipt','ods_vendor_invoice','ods_cost_plan','ods_shipment','ods_inventory_snapshot','ods_sales_order_inv','ods_return_order_inv','ods_product','ods_vendor'];
+    el.innerHTML =
+      '<div class="sys-block"><div class="schema-tag tag-gray">stg</div>' +
+      stgTables.map(t => '<div class="col-row gray">' + t + '</div>').join('') + '</div>' +
+      '<div class="sys-block"><div class="schema-tag tag-blue">ods</div>' +
+      odsTables.map(t => '<div class="col-row blue">' + t + '</div>').join('') + '</div>';
+    return;
+  }
+  const stg = k.ods.filter(r => r.startsWith('stg'));
+  const ods = k.ods.filter(r => r.startsWith('ods'));
+  el.innerHTML =
+    '<div class="sys-block"><div class="schema-tag tag-gray">stg</div>' +
+    (stg.length ? stg.map(r => '<div class="col-row gray lit">' + e(r) + '</div>').join('') : '<div class="col-row gray">passthrough</div>') +
+    '</div><div class="sys-block"><div class="schema-tag tag-blue">ods</div>' +
+    ods.map(r => '<div class="col-row blue lit">' + e(r) + '</div>').join('') + '</div>';
+}
+
+function renderDw(k) {
+  const el = document.getElementById('dwLayer');
+  if (!k) {
+    const facts = activePair === 1
+      ? ['fact_revenue_invoiceflow','fact_revenue_salescrm']
+      : ['fact_procurement','fact_inventory_operations'];
+    const marts = activePair === 1
+      ? ['mart_finance_revenue','mart_sales_performance']
+      : ['mart_procurement_cost','mart_ops_inventory'];
+    el.innerHTML =
+      '<div class="sys-block"><div class="schema-tag tag-purple">dw facts</div>' +
+      facts.map(t => '<div class="col-row purple">' + t + '</div>').join('') + '</div>' +
+      '<div class="sys-block"><div class="schema-tag tag-amber">mart</div>' +
+      marts.map(t => '<div class="col-row amber">' + t + '</div>').join('') + '</div>';
+    return;
+  }
+  const facts = k.dw.filter(r => r.startsWith('fact'));
+  const marts = k.dw.filter(r => r.startsWith('mart'));
+  el.innerHTML =
+    '<div class="sys-block"><div class="schema-tag tag-purple">dw facts</div>' +
+    facts.map(r => '<div class="col-row purple lit">' + e(r) + '</div>').join('') + '</div>' +
+    '<div class="sys-block"><div class="schema-tag tag-amber">mart</div>' +
+    marts.map(r => '<div class="col-row amber lit">' + e(r) + '</div>').join('') + '</div>';
+}
+
+function renderRpt(k) {
+  const el = document.getElementById('rptLayer');
+  if (!k) {
+    const cards = activePair === 1
+      ? [['Report A','Revenue & Profitability','Finance / CFO','mart_finance_revenue'],
+         ['Report B','Sales Performance','Sales / VP Sales','mart_sales_performance']]
+      : [['Report C','Procurement & Cost','Procurement / CPO','mart_procurement_cost'],
+         ['Report D','Supply Chain & Inventory','Operations / SC Director','mart_ops_inventory']];
+    el.innerHTML = cards.map(([r,t,o,m]) =>
+      '<div class="report-card"><div class="rpt-title">' + r + ' — ' + t + '</div>' +
+      '<div style="font-size:10px;color:var(--tx3);margin-bottom:3px">' + o + '</div>' +
+      '<div class="mart-badge tag-amber">' + m + '</div></div>'
+    ).join('');
+    return;
+  }
+  const seen = {};
+  k.rpt.forEach(r => { if (!seen[r.name]) seen[r.name] = {name:r.name,lines:[]}; seen[r.name].lines.push(r); });
+  el.innerHTML = Object.values(seen).map(rc =>
+    '<div class="report-card lit"><div class="rpt-title">' + e(rc.name) + '</div>' +
+    '<div class="mart-badge tag-amber" style="margin-bottom:6px">' + e(rc.lines[0].mart) + '</div>' +
+    rc.lines.map(r =>
+      '<div class="kpi-measure lit ' + r.cls + '">' +
+      '<div style="font-weight:500;font-size:11px">' + e(r.kpi) + '</div>' +
+      '<div class="kpi-formula">' + e(r.formula) + '</div>' +
+      '<div class="kpi-owner">' + e(r.owner) + '</div>' +
+      (r.conflict ? '<div class="conflict-badge">⚡ formula conflict</div>' : '') +
+      '</div>'
+    ).join('') + '</div>'
+  ).join('');
+}
+
+buildPills();
+render(null);
+</script>
+</body>
+</html>
+
