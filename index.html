@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OvalEdge Demo — Column-Level Lineage Reference v3</title>
+<title>Vero — Column-Level Lineage Reference v3</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -133,7 +133,7 @@ footer strong{color:var(--tx2)}
 <body>
 
 <header>
-  <h1>OvalEdge Demo — Column-Level Lineage Reference</h1>
+  <h1>Vero — Column-Level Lineage Reference</h1>
   <p>Traces each KPI from source application column through ETL, staging, ODS, DW facts, and mart tables to Power BI reports. The conflict lives in the lineage — same KPI name, different source columns, different reports.</p>
   <div class="meta">
     <div class="meta-item">Source apps <span>InvoiceFlow · ProcureEdge · SalesCRM · InventoryHub</span></div>
@@ -181,7 +181,7 @@ footer strong{color:var(--tx2)}
   <strong>Report C</strong> — Procurement &amp; Cost · CPO / Finance Cost · reads mart_procurement_cost &nbsp;|&nbsp;
   <strong>Report D</strong> — Supply Chain &amp; Inventory · Operations / SC Director · reads mart_ops_inventory<br>
   No _v1/_v2 columns anywhere in source, stg, ods, or dw layers. Each report reads its own mart table with clean, unambiguous column names.
-  All table and column names match <strong>ovaledge_demo_v3_ddl.sql</strong>.
+  All table and column names match <strong>vero_source_ddl.sql</strong>.
 </footer>
 
 <script>
